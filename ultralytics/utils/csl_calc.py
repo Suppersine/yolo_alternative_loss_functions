@@ -28,7 +28,7 @@ def bbox_reformat(bbox, format_type):
     y1 = center_y - height / 2
     x2 = center_x + width / 2
     y2 = center_y + height / 2
-    return np.array([x1, y1, x2, y2])
+    return torch.Tensor([x1, y1, x2, y2])
   else:
     raise ValueError(f"Unsupported format type: {format_type}")
 # %%
@@ -74,8 +74,10 @@ def calculate_iou_batch(obb_gt_matrix, obb_pr_matrix, eps=1e-7, CIoU=False):
       obb_gt_reformatted = np.array(box2[0], box2[1], box2[2], box2[3])
 
     # Convert reformatted NumPy arrays to PyTorch tensors
-    b1_x1, b1_y1, b1_x2, b1_y2 = torch.tensor(obb_gt_reformatted)
-    b2_x1, b2_y1, b2_x2, b2_y2 = torch.tensor(obb_pr_reformatted)
+    #b1_x1, b1_y1, b1_x2, b1_y2 = torch.tensor(obb_gt_reformatted)
+    #b2_x1, b2_y1, b2_x2, b2_y2 = torch.tensor(obb_pr_reformatted)
+    b1_x1, b1_y1, b1_x2, b1_y2 = obb_gt_reformatted.clone().detach()
+    b2_x1, b2_y1, b2_x2, b2_y2 = obb_pr_reformatted.clone().detach()
 
     # Intersection area
     inter = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * \
@@ -104,10 +106,10 @@ def calculate_iou_batch(obb_gt_matrix, obb_pr_matrix, eps=1e-7, CIoU=False):
       alpha = v / (v - iou_tensor + (1 + eps))
       CIOU = iou_tensor - v * alpha  # CIoU
       #print(CIOU)
-    return CIOU
+    return CIOU.cuda()
 
   else:
-    return iou_tensor
+    return iou_tensor.cuda()
 
 # %%
 if __name__ == '__main__':

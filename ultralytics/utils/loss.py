@@ -171,22 +171,22 @@ class RotatedBboxLoss(BboxLoss):
             iou = calculate_iou_batch(pred_bboxes[fg_mask], target_bboxes[fg_mask], eps=1e-7)
         elif lossmode == 'KLD_1_lg':
             kld_loss_cal = KLDloss(taf=1.0,fun='log1p')
-            iou = kld_loss_cal(target, pred)
+            iou = kld_loss_cal(pred_bboxes[fg_mask], target_bboxes[fg_mask])
         elif lossmode == 'KLD_1_sqrt':
             kld_loss_sqrt = KLDloss(taf=1.0,fun='sqrt')
-            iou = kld_loss_sqrt(target, pred)
+            iou = kld_loss_sqrt(pred_bboxes[fg_mask], target_bboxes[fg_mask])
         elif lossmode == 'KLD_3_lg':
             kld_loss_cal = KLDloss(taf=3.0,fun='log1p')
-            iou = kld_loss_cal(target, pred)
+            iou = kld_loss_cal(pred_bboxes[fg_mask], target_bboxes[fg_mask])
         elif lossmode == 'KLD_3_sqrt':
             kld_loss_sqrt = KLDloss(taf=3.0,fun='sqrt')
-            iou = kld_loss_sqrt(target, pred)
+            iou = kld_loss_sqrt(pred_bboxes[fg_mask], target_bboxes[fg_mask])
         elif lossmode == 'KFIOU_dflt':
-            loss_iou, iou = kfiou_loss(pred, target, fun=None)
+            loss_iou, iou = kfiou_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask], fun=None)
         elif lossmode == 'KFIOU_ln':
-            loss_iou, iou = kfiou_loss(pred, target, fun='ln')
+            loss_iou, iou = kfiou_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask], fun='ln')
         elif lossmode == 'KFIOU_exp':
-            loss_iou, iou = kfiou_loss(pred, target, fun='exp')
+            loss_iou, iou = kfiou_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask], fun='exp')
         else:
             iou = probiou(pred_bboxes[fg_mask], target_bboxes[fg_mask]) # GBB default
         loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
