@@ -1,7 +1,7 @@
 import pickle
 
 # List of available modes
-modes = ["GBB", "CSL", "KLD_3_lg", "KLD_3_sqrt", "KFIOU_dflt", "KFIOU_ln", "KFIOU_exp"]
+modes = ["GBB", "CSL", "KLD_1_lg", "KLD_1_sqrt", "KLD_3_lg", "KLD_3_sqrt", "KFIOU_dflt", "KFIOU_ln", "KFIOU_exp"]
 
 # Default mode
 mode = 'GBB'
