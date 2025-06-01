@@ -14,7 +14,7 @@ from ultralytics.utils.torch_utils import autocast
 from .metrics import bbox_iou, probiou
 from .csl_calc import calculate_iou_batch
 from .kld_calc import KLDloss
-from .kfiou_calc.py import kfiou_loss
+from .kfiou_calc import kfiou_loss
 from .tal import bbox2dist
 import pickle
 
