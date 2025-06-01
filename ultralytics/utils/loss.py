@@ -12,8 +12,16 @@ from ultralytics.utils.tal import RotatedTaskAlignedAssigner, TaskAlignedAssigne
 from ultralytics.utils.torch_utils import autocast
 
 from .metrics import bbox_iou, probiou
+from .csl_calc import calculate_iou_batch
+from .kld_calc import KLDloss
+from .kfiou_calc.py import kfiou_loss
 from .tal import bbox2dist
+import pickle
 
+with open("datacar.pkl", "rb") as f:
+    lossmode = pickle.load(f)
+
+#print(lossmode)
 
 class VarifocalLoss(nn.Module):
     """
@@ -158,7 +166,29 @@ class RotatedBboxLoss(BboxLoss):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute IoU and DFL losses for rotated bounding boxes."""
         weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
-        iou = probiou(pred_bboxes[fg_mask], target_bboxes[fg_mask])
+        # lossmodes = ["GBB", "CSL", "KLD_1_lg", "KLD_1_sqrt", "KLD_3_lg", "KLD_3_sqrt", "KFIOU_dflt", "KFIOU_ln", "KFIOU_exp"]
+        if lossmode = 'CSL'
+            iou = calculate_iou_batch(pred_bboxes[fg_mask], target_bboxes[fg_mask], eps=1e-7)
+        elif lossmode = 'KLD_1_lg':
+            kld_loss_cal = KLDloss(taf=1.0,fun='log1p')
+            iou = kld_loss_cal(target, pred)
+        elif lossmode = 'KLD_1_sqrt':
+            kld_loss_sqrt = KLDloss(taf=1.0,fun='sqrt')
+            iou = kld_loss_sqrt(target, pred)
+        elif lossmode = 'KLD_3_lg':
+            kld_loss_cal = KLDloss(taf=3.0,fun='log1p')
+            iou = kld_loss_cal(target, pred)
+        elif lossmode = 'KLD_3_sqrt':
+            kld_loss_sqrt = KLDloss(taf=3.0,fun='sqrt')
+            iou = kld_loss_sqrt(target, pred)
+        elif lossmode = 'KFIOU_dflt':
+            loss_iou, iou = kfiou_loss(pred, target, fun=None)
+        elif lossmode = 'KFIOU_ln':
+            loss_iou, iou = kfiou_loss(pred, target, fun='ln')
+        elif lossmode = 'KFIOU_exp':
+            loss_iou, iou = kfiou_loss(pred, target, fun='exp')
+        else:
+            iou = probiou(pred_bboxes[fg_mask], target_bboxes[fg_mask]) # GBB default
         loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
 
         # DFL loss
