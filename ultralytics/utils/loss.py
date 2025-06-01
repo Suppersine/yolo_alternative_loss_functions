@@ -167,7 +167,7 @@ class RotatedBboxLoss(BboxLoss):
         """Compute IoU and DFL losses for rotated bounding boxes."""
         weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
         # lossmodes = ["GBB", "CSL", "KLD_1_lg", "KLD_1_sqrt", "KLD_3_lg", "KLD_3_sqrt", "KFIOU_dflt", "KFIOU_ln", "KFIOU_exp"]
-        if lossmode == 'CSL'
+        if lossmode == 'CSL':
             iou = calculate_iou_batch(pred_bboxes[fg_mask], target_bboxes[fg_mask], eps=1e-7)
         elif lossmode == 'KLD_1_lg':
             kld_loss_cal = KLDloss(taf=1.0,fun='log1p')
