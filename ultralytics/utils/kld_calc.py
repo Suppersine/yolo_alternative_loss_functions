@@ -3,11 +3,10 @@ import torch.nn as nn
 import math
 
 class KLDloss(nn.Module):
-    def __init__(self, taf=1.0, reduction="none", angularity='radian'):
+    def __init__(self, taf=1.0, reduction="none"):
         super(KLDloss, self).__init__()
         self.reduction = reduction
         self.taf = taf
-        self.angularity = angularity
 
     def forward(self, pred, target): # pred [[x,y,w,h,angle], ...]
         assert pred.shape[0] == target.shape[0]
@@ -17,12 +16,8 @@ class KLDloss(nn.Module):
 
         delta_x = pred[:, 0] - target[:, 0]
         delta_y = pred[:, 1] - target[:, 1]
-        if self.angularity == 'radian':
-            pre_angle_radian = pred[:, 4]
-            targrt_angle_radian = target[:, 4]
-        else:
-            pre_angle_radian = 3.141592653589793 * pred[:, 4] / 180.0 # if the angle is in degrees
-            targrt_angle_radian = 3.141592653589793 * target[:, 4] / 180.0 # if the angle is in degrees
+        pre_angle_radian = 3.141592653589793 * pred[:, 4] / 180.0
+        targrt_angle_radian = 3.141592653589793 * target[:, 4] / 180.0
         delta_angle_radian = pre_angle_radian - targrt_angle_radian
 
         kld =  0.5 * (
@@ -108,11 +103,10 @@ def kld_loss(pred, target, taf=1.0):  # pred [[x,y,w,h,angle], ...]
 # print(kld)
 #
 # print(torch.floor(torch.tensor(-9.9)))
+
 def postprocess(distance, fun='log1p', tau=1.0):
     if fun == 'log1p':
         distance = torch.log1p(distance)
-    elif fun == "sqrt":
-        distance = distance.clamp(1e-7).sqrt()
     elif fun == 'none':
         pass
     else:
@@ -174,20 +168,34 @@ def kld_loss_(pred, target, fun='log1p', tau=1.0, alpha=1.0, sqrt=True):
 
     return postprocess(distance, fun=fun, tau=tau)
 
-# #loss = KLDloss()
-# pred = torch.tensor([[20, 20, 10, 10, 10], [20, 20, 20, 10, 10], [1, 0.5, 2, 1, 0]], dtype=torch.float32)
-# target = torch.tensor([[20, 20, 10, 10,5], [20, 20, 20, 10,5], [1.2, 1, 2, 1, 0]], dtype=torch.float32)
-# kld = kld_loss(pred, target)
-# print(kld)
-# kld = kld_loss_(pred, target)
-# print(kld)
-# a = torch.tensor([[0.20],[0.40],[0.50]]).sigmoid()
-# print(a)
-# print(a.shape)
-# print(torch.floor(a*180))
-# pred = torch.tensor([[20, 20, 10, 10, -90], [20, 20, 20, 10, 90], [1, 0.5, 2, 1, 0]], dtype=torch.float32)
-# target = torch.tensor([[20, 20, 10, 10, -90], [20, 20, 20, 10, 0]], dtype=torch.float32)
-# kld = compute_kld_loss(target, pred)
-# print(kld)
-#
-# print(torch.floor(torch.tensor(-9.9)))
+if __name__ == "__main__":
+    loss = KLDloss()
+    # pred = torch.tensor([[20, 20, 10, 10, 10], [20, 20, 20, 10, 10], [1, 0.5, 2, 1, 0]], dtype=torch.float32)
+    pred = torch.tensor([
+            [100.0, 100.0, 50.0, 30.0, 0.0],
+            [200.0, 200.0, 60.0, 40.0, math.pi/4],
+            [300.0, 300.0, 70.0, 50.0, math.pi/2]
+        ])
+    
+    target = torch.tensor([
+            [110.0, 100.0, 50.0, 30.0, 0.0],
+            [205.0, 195.0, 60.0, 40.0, math.pi/4],
+            [300.0, 300.0, 70.0, 50.0, math.pi/2]
+        ])
+    # target = torch.tensor([[20, 20, 10, 10,5], [20, 20, 20, 10,5], [1.2, 1, 2, 1, 0]], dtype=torch.float32)
+    kld_l = kld_loss(pred, target, taf=1.0)
+    print(kld_l)
+    kld_d = kld_loss_(pred, target, tau=1.0)
+    print(kld_d)
+    a = torch.tensor([[0.20],[0.40],[0.50]]).sigmoid()
+    print(a)
+    print(a.shape)
+    print(torch.floor(a*180))
+    # pred = torch.tensor([[20, 20, 10, 10, -90], [20, 20, 20, 10, 90], [1, 0.5, 2, 1, 0]], dtype=torch.float32)
+    # target = torch.tensor([[20, 20, 10, 10, -90], [20, 20, 20, 10, 0]], dtype=torch.float32)
+    kld = compute_kld_loss(target, pred)
+    print(kld)
+    #
+    print(torch.floor(torch.tensor(-9.9)))
+    
+    loss_iou = ((1.0 - kld_d) * 3).sum() / 3
