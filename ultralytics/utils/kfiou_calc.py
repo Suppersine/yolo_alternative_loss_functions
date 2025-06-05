@@ -51,8 +51,14 @@ def kfiou_loss(pred,
     """
     #xy_p = pred[:, :2]
     #xy_t = target[:, :2]
+    original_dtype = pred.dtype
+    pred = pred.float()
+    target = target.float()
+    
     xy_p, Sigma_p = xy_wh_r_2_xy_sigma(pred)
     xy_t, Sigma_t = xy_wh_r_2_xy_sigma(target)
+    Sigma_p = Sigma_p.float()
+    Sigma_t = Sigma_t.float()
 
     # Smooth-L1 norm
     diff = torch.abs(xy_p - xy_t)
@@ -77,6 +83,8 @@ def kfiou_loss(pred,
 
     loss = (0.01 * xy_loss + kf_loss).clamp(1e-7)
     KFIoU_2 =  1 / (1 + torch.log1p(loss))
+    loss = loss.to(original_dtype)
+    loss = KFIoU_2.to(original_dtype)
 
     return loss, KFIoU_2
 

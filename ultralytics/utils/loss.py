@@ -170,25 +170,25 @@ class RotatedBboxLoss(BboxLoss):
         # lossmodes = ["GBB", "CSL", "KLD_1_lg", "KLD_1_sqrt", "KLD_3_lg", "KLD_3_sqrt", "KFIOU_dflt", "KFIOU_ln", "KFIOU_exp"]
         if lossmode == 'CSL':
             iou = calculate_iou_batch(pred_bboxes[fg_mask], target_bboxes[fg_mask], eps=1e-7)
-            loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
+            #loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
         elif lossmode == 'KLD_1':
             kld_loss = kld_l(pred_bboxes[fg_mask], target_bboxes[fg_mask], taf=1.0)
             #print(kld_l)
-            kld_dist = kld_d(pred, target, tau=1.0)
+            kld_dist = kld_d(pred_bboxes[fg_mask], target_bboxes[fg_mask], tau=1.0)
             #print(kld_d)
             iou = kld_dist
             loss_iou = kld_loss
         elif lossmode == 'KLD_2':
             kld_loss = kld_l(pred_bboxes[fg_mask], target_bboxes[fg_mask], taf=2.0)
             #print(kld_l)
-            kld_dist = kld_d(pred, target, tau=2.0)
+            kld_dist = kld_d(pred_bboxes[fg_mask], target_bboxes[fg_mask], tau=2.0)
             #print(kld_d)
             iou = kld_dist
             loss_iou = kld_loss
         elif lossmode == 'KLD_3':
             kld_loss = kld_l(pred_bboxes[fg_mask], target_bboxes[fg_mask], taf=3.0)
             #print(kld_l)
-            kld_dist = kld_d(pred, target, tau=3.0)
+            kld_dist = kld_d(pred_bboxes[fg_mask], target_bboxes[fg_mask], tau=3.0)
             #print(kld_d)
             iou = kld_dist
             loss_iou = kld_loss
