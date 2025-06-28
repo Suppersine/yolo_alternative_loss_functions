@@ -14,7 +14,7 @@ from ultralytics.utils.torch_utils import autocast
 from .csl_calc import calculate_iou_batch
 from .kld_calc import kld_loss as kld_l
 from .kld_calc import kld_loss_ as kld_d
-from .kfiou_calc import kfiou_loss
+from .kfiou_calc import calculate_kld_loss_with_final_function
 import pickle
 
 from .metrics import bbox_iou, probiou
@@ -168,31 +168,18 @@ class RotatedBboxLoss(BboxLoss):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Compute IoU and DFL losses for rotated bounding boxes."""
         weight = target_scores.sum(-1)[fg_mask].unsqueeze(-1)
-                # lossmodes = ["GBB", "CSL", "KLD_1_lg", "KLD_1_sqrt", "KLD_3_lg", "KLD_3_sqrt", "KFIOU_dflt", "KFIOU_ln", "KFIOU_exp"]
+                # lossmodes = ["GBB", "CSL", "KLD_none", "KLD_sqrt", "KLD_lg", "KFIOU_dflt", "KFIOU_ln", "KFIOU_exp"]
         if lossmode == 'CSL':
             iou = calculate_iou_batch(pred_bboxes[fg_mask], target_bboxes[fg_mask], eps=1e-7)
             #loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
-        elif lossmode == 'KLD_1':
-            kld_loss = kld_l(pred_bboxes[fg_mask], target_bboxes[fg_mask], taf=1.0)
-            #print(kld_l)
-            kld_dist = kld_d(pred_bboxes[fg_mask], target_bboxes[fg_mask], tau=1.0)
-            #print(kld_d)
-            iou = kld_dist
-            loss_iou = kld_loss
-        elif lossmode == 'KLD_2':
-            kld_loss = kld_l(pred_bboxes[fg_mask], target_bboxes[fg_mask], taf=2.0)
-            #print(kld_l)
-            kld_dist = kld_d(pred_bboxes[fg_mask], target_bboxes[fg_mask], tau=2.0)
-            #print(kld_d)
-            iou = kld_dist
-            loss_iou = kld_loss
-        elif lossmode == 'KLD_3':
-            kld_loss = kld_l(pred_bboxes[fg_mask], target_bboxes[fg_mask], taf=3.0)
-            #print(kld_l)
-            kld_dist = kld_d(pred_bboxes[fg_mask], target_bboxes[fg_mask], tau=3.0)
-            #print(kld_d)
-            iou = kld_dist
-            loss_iou = kld_loss
+        elif lossmode == 'KLD_none':
+            loss_iou, iou = calculate_kld_loss_with_final_function(box_pr, box_gt, final_function='none')
+        elif lossmode == 'KLD_sqrt':
+            loss_iou, iou = calculate_kld_loss_with_final_function(box_pr, box_gt, final_function='sqrt')
+        elif lossmode == 'KLD_ln':
+            loss_iou, iou = calculate_kld_loss_with_final_function(box_pr, box_gt, final_function='ln')
+            # iou = KLD_none
+            # loss_iou = loss_none
         elif lossmode == 'KFIOU_dflt':
             loss_iou, iou = kfiou_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask], fun=None)
         elif lossmode == 'KFIOU_ln':
@@ -201,7 +188,12 @@ class RotatedBboxLoss(BboxLoss):
             loss_iou, iou = kfiou_loss(pred_bboxes[fg_mask], target_bboxes[fg_mask], fun='exp')
         else:
             iou = probiou(pred_bboxes[fg_mask], target_bboxes[fg_mask]) # GBB default
-        loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
+
+        #for non-KLD IOU algorithms:
+        if lossmode in ["KLD_none", "KLD_sqrt", "KLD_ln"]:
+            loss_iou = loss_iou
+        else:
+            loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
 
         # DFL loss
         if self.dfl_loss:
