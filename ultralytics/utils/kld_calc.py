@@ -2,7 +2,7 @@
 import torch
 import math
 
-def calculate_kld_loss_with_final_function(box_pr, box_gt, final_function='none', eps=1e-7):
+def getklddist(box_pr, box_gt, final_function='none', eps=1e-7, final_reLU=False):
   """
   Calculates the KLD-based loss between predicted and ground truth rotated bounding boxes
   with an option to apply a final function to KLD.
@@ -83,10 +83,17 @@ def calculate_kld_loss_with_final_function(box_pr, box_gt, final_function='none'
   # Calculate the loss using the transformed KLD
   loss = 1 - (1 / (Tau + transformed_KLD + eps))
 
+  if final_reLU:
+      loss = torch.relu(loss)
   loss = loss.to(original_dtype)
   KLD = KLD.to(original_dtype)
 
   return loss, KLD
+
+def getlostkld(transformed_KLD,Tau=1.0, eps=1e-7):
+  loss = 1 - (1 / (Tau + transformed_KLD + eps))
+  return loss
+
 
 # Example Usage (using the original tensor definitions for demonstration)
 if __name__ == "__main__":
