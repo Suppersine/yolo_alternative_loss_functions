@@ -12,9 +12,8 @@ from ultralytics.utils.tal import RotatedTaskAlignedAssigner, TaskAlignedAssigne
 from ultralytics.utils.torch_utils import autocast
 
 from .csl_calc import calculate_iou_batch
-from .kld_calc import kld_loss as kld_l
-from .kld_calc import kld_loss_ as kld_d
-from .kfiou_calc import calculate_kld_loss_with_final_function
+from .kld_calc import calculate_kld_loss_with_final_function
+from .kfiou_calc import kfiou_loss
 import pickle
 
 from .metrics import bbox_iou, probiou
