@@ -1,253 +1,122 @@
-import torch
-import torch.nn as nn
-import math
+# prompt: Divide the "final function" (none, sqrt, ln) into 3 cases, as an input argument & returning value
 
-class KLDloss(nn.Module):
-    def __init__(self, taf=1.0, reduction="none", angularity='radian', eps=1e-7):
-        super(KLDloss, self).__init__()
-        self.reduction = reduction
-        self.taf = taf
-        self.angularity = angularity
-        self.eps = eps
+def calculate_kld_loss_with_final_function(box_pr, box_gt, final_function='none', eps=1e-7):
+  """
+  Calculates the KLD-based loss between predicted and ground truth rotated bounding boxes
+  with an option to apply a final function to KLD.
 
-    def forward(self, pred, target): # pred [[x,y,w,h,angle], ...]
-        assert pred.shape[0] == target.shape[0]
+  Args:
+    box_pr (torch.Tensor): Predicted bounding boxes (N, 5) in (xc, yc, w, h, theta) format.
+    box_gt (torch.Tensor): Ground truth bounding boxes (N, 5) in (xc, yc, w, h, theta) format.
+    final_function (str): Specifies the final function to apply to KLD.
+                           'none': No function applied.
+                           'sqrt': Square root of KLD.
+                           'ln': Natural logarithm of KLD + 1.
+    eps (float): A small epsilon value to prevent division by zero or log(0).
 
-        pred = pred.view(-1, 5)
-        target = target.view(-1, 5)
+  Returns:
+    tuple: A tuple containing:
+      - loss (torch.Tensor): Loss calculated based on the specified final_function.
+      - KLD (torch.Tensor): The Kullback-Leibler Divergence values.
+  """
+  #datatype conversion from float16 to float32
+  original_dtype = box_pr.dtype
+  box_pr = box_pr.float()
+  box_gt = box_gt.float()
 
-        #datatype conversion from float16 to float32
-        original_dtype = pred.dtype
-        pred = pred.float()
-        target = target.float()
+  # Ensure positive dimensions for safety
+  pr_w, pr_h = box_pr[:, 2].clamp(min=eps), box_pr[:, 3].clamp(min=eps)
+  gt_w, gt_h = box_gt[:, 2].clamp(min=eps), box_gt[:, 3].clamp(min=eps)
 
-        delta_x = pred[:, 0] - target[:, 0]
-        delta_y = pred[:, 1] - target[:, 1]
-        if self.angularity == "radian":
-            pre_angle_radian = pred[:, 4]
-            targrt_angle_radian = target[:, 4]
-        else: #degrees
-            pre_angle_radian = 3.141592653589793 * pred[:, 4] / 180.0
-            targrt_angle_radian = 3.141592653589793 * target[:, 4] / 180.0
-        delta_angle_radian = pre_angle_radian - targrt_angle_radian
+  # Extract elements for calculation
+  gt_xc, gt_yc, gt_theta = box_gt[:, 0], box_gt[:, 1], box_gt[:, 4]
+  pr_xc, pr_yc, pr_theta = box_pr[:, 0], box_pr[:, 1], box_pr[:, 4]
 
-        # Add eps to prevent division by zero
-        target_w_sq = torch.pow(target[:, 2], 2) + self.eps
-        target_h_sq = torch.pow(target[:, 3], 2) + self.eps
-        pred_w_sq = torch.pow(pred[:, 2], 2) + self.eps
-        pred_h_sq = torch.pow(pred[:, 3], 2) + self.eps
+  # Calculate delta_theta
+  delta_theta = pr_theta - gt_theta
 
-        kld =  0.5 * (
-                        4 * torch.pow( ( delta_x.mul(torch.cos(targrt_angle_radian)) + delta_y.mul(torch.sin(targrt_angle_radian)) ), 2) / target_w_sq
-                      + 4 * torch.pow( ( delta_y.mul(torch.cos(targrt_angle_radian)) - delta_x.mul(torch.sin(targrt_angle_radian)) ), 2) / target_h_sq
-                     )\
-             + 0.5 * (
-                        pred_h_sq / target_w_sq * torch.pow(torch.sin(delta_angle_radian), 2)
-                      + pred_w_sq / target_h_sq * torch.pow(torch.sin(delta_angle_radian), 2)
-                      + pred_h_sq / target_h_sq * torch.pow(torch.cos(delta_angle_radian), 2)
-                      + pred_w_sq / target_w_sq * torch.pow(torch.cos(delta_angle_radian), 2)
-                     )\
-             + 0.5 * (
-                        torch.log(target_h_sq / pred_h_sq)
-                      + torch.log(target_w_sq / pred_w_sq)
-                     )\
-             - 1.0
+  # Calculate diff_x and diff_y
+  diff_x = pr_xc - gt_xc
+  diff_y = pr_yc - gt_yc
 
-        # Add eps to prevent log(0) and ensure kld > 0
-        kld = torch.clamp(kld, min=self.eps)
-        kld_loss = 1 - 1 / (self.taf + torch.log(kld + 1))
-        kld_loss = kld_loss.to(original_dtype)
+  # Calculate the first part of the alternative KL-term
+  part1 = (4 / (gt_w**2 + eps)) * torch.square((diff_x * torch.cos(gt_theta)) + (diff_y * torch.sin(gt_theta)))
 
-        # if self.reduction == "mean":
-        #     kld_loss = loss.mean()
-        # elif self.reduction == "sum":
-        #     kld_loss = loss.sum()
+  # Calculate the second part of the alternative KL-term
+  part2 = (4 / (gt_h**2 + eps)) * torch.square((diff_y * torch.cos(gt_theta)) - (diff_x * torch.sin(gt_theta)))
 
-        
-        return kld_loss
+  # Calculate the alternative 1st KL-term
+  alternative_kl_term1 = part1 + part2
 
+  # Calculate the terms for the alternative 2nd KL-term
+  term1 = ((pr_h**2 + eps) / (gt_w**2 + eps)) * torch.square(torch.sin(delta_theta))
+  term2 = ((pr_w**2 + eps) / (gt_h**2 + eps)) * torch.square(torch.sin(delta_theta))
+  term3 = ((pr_h**2 + eps) / (gt_h**2 + eps)) * torch.square(torch.cos(delta_theta))
+  term4 = ((pr_w**2 + eps) / (gt_w**2 + eps)) * torch.square(torch.cos(delta_theta))
+  term5 = torch.log((gt_h**2 + eps) / (pr_h**2 + eps))
+  term6 = torch.log((gt_w**2 + eps) / (pr_w**2 + eps))
 
-def compute_kld_loss(targets, preds):
-    with torch.no_grad():
-        kld_loss_ts_ps = torch.zeros(0, preds.shape[0], device=targets.device)
-        for target in targets:
-            target = target.unsqueeze(0).repeat(preds.shape[0], 1)
-            kld_loss_t_p = kld_loss(preds, target)
-            kld_loss_ts_ps = torch.cat((kld_loss_ts_ps, kld_loss_t_p.unsqueeze(0)), dim=0)
-    return kld_loss_ts_ps
+  # Calculate the alternative 2nd KL-term
+  alternative_kl_term2 = term1 + term2 + term3 + term4
+  alternative_kl_term3 = term5 + term6
 
+  # Calculate the final KLD value (clamp to avoid negative values due to numerical instability)
+  KLD = 0.5 * alternative_kl_term1 + 0.5 * alternative_kl_term2 + 0.5 * alternative_kl_term3 - 1.0
+  KLD = torch.clamp(KLD, min=eps)
+  KLD = torch.relu(KLD) # Ensure KLD is non-negative
 
-def kld_loss(pred, target, taf=1.0, angularity="radian", eps=1e-7):  # pred [[x,y,w,h,angle], ...]
-    assert pred.shape[0] == target.shape[0]
+  # Apply the final function based on the argument
+  if final_function == 'none':
+    transformed_KLD = KLD
+  elif final_function == 'sqrt':
+    transformed_KLD = torch.sqrt(KLD)
+  elif final_function == 'ln':
+    transformed_KLD = torch.log(KLD + 1 + eps)
+  else:
+    raise ValueError("Invalid final_function specified. Choose 'none', 'sqrt', or 'ln'.")
 
-    pred = pred.view(-1, 5)
-    target = target.view(-1, 5)
-    
-    #datatype conversion from float16 to float32
-    original_dtype = pred.dtype
-    pred = pred.float()
-    target = target.float()
+  # Set Tau
+  Tau = 1
 
-    delta_x = pred[:, 0] - target[:, 0]
-    delta_y = pred[:, 1] - target[:, 1]
-    if angularity == "radian":
-        pre_angle_radian = pred[:, 4]
-        targrt_angle_radian = target[:, 4]
-    else: #degrees
-        pre_angle_radian = 3.141592653589793 * pred[:, 4] / 180.0
-        targrt_angle_radian = 3.141592653589793 * target[:, 4] / 180.0
-    delta_angle_radian = pre_angle_radian - targrt_angle_radian
+  # Calculate the loss using the transformed KLD
+  loss = 1 - (1 / (Tau + transformed_KLD + eps))
 
-    # Add eps to prevent division by zero
-    target_w_sq = torch.pow(target[:, 2], 2) + eps
-    target_h_sq = torch.pow(target[:, 3], 2) + eps
-    pred_w_sq = torch.pow(pred[:, 2], 2) + eps
-    pred_h_sq = torch.pow(pred[:, 3], 2) + eps
+  loss = loss.to(original_dtype)
+  KLD = KLD.to(original_dtype)
 
-    kld = 0.5 * (
-            4 * torch.pow((delta_x.mul(torch.cos(targrt_angle_radian)) + delta_y.mul(torch.sin(targrt_angle_radian))),
-                          2) / target_w_sq
-            + 4 * torch.pow((delta_y.mul(torch.cos(targrt_angle_radian)) - delta_x.mul(torch.sin(targrt_angle_radian))),
-                            2) / target_w_sq
-    ) \
-          + 0.5 * (
-                  pred_h_sq / target_w_sq * torch.pow(torch.sin(delta_angle_radian), 2)
-                  + pred_w_sq / target_h_sq * torch.pow(torch.sin(delta_angle_radian), 2)
-                  + pred_h_sq / target_h_sq * torch.pow(torch.cos(delta_angle_radian), 2)
-                  + pred_w_sq / target_w_sq * torch.pow(torch.cos(delta_angle_radian), 2)
-          ) \
-          + 0.5 * (
-                  torch.log(target_h_sq / pred_h_sq)
-                  + torch.log(target_w_sq / pred_w_sq)
-          ) \
-          - 1.0
+  return loss, KLD
 
-    # Add eps to prevent log(0) and ensure kld > 0
-    kld = torch.clamp(kld, min=eps)
-    kld_loss = 1 - 1 / (taf + torch.log(kld + 1))
-    kld_loss = kld_loss.to(original_dtype)
-
-    return kld_loss
-
-# loss = KLDloss()
-# pred = torch.tensor([[20, 20, 10, 10, -90], [20, 20, 20, 10, 90], [1, 0.5, 2, 1, 0]], dtype=torch.float32)
-# target = torch.tensor([[20, 20, 10, 10, -90], [20, 20, 20, 10, 0], [0.5, 1, 2, 1, -90]], dtype=torch.float32)
-# kld = kld_loss(pred, target)
-# print(kld)
-
-
-# pred = torch.tensor([[20, 20, 10, 10, -90], [20, 20, 20, 10, 90], [1, 0.5, 2, 1, 0]], dtype=torch.float32)
-# target = torch.tensor([[20, 20, 10, 10, -90], [20, 20, 20, 10, 0]], dtype=torch.float32)
-# kld = compute_kld_loss(target, pred)
-# print(kld)
-#
-# print(torch.floor(torch.tensor(-9.9)))
-
-def postprocess(distance, fun='log1p', tau=1.0):
-    if fun == 'log1p':
-        distance = torch.log1p(distance)
-    elif fun == 'none':
-        pass
-    else:
-        raise ValueError(f'Invalid non-linear function {fun}')
-
-    if tau >= 1.0:
-        return 1 - 1 / (tau + distance)
-    else:
-        return distance
-
-def xy_stddev_pearson_2_xy_sigma(xy_stddev_pearson):
-    _shape = xy_stddev_pearson.shape
-    assert _shape[-1] == 5
-    xy = xy_stddev_pearson[..., :2]
-    stddev = xy_stddev_pearson[..., 2:4]
-    pearson = xy_stddev_pearson[..., 4].clamp(min=1e-7 - 1, max=1 - 1e-7)
-    covar = pearson * stddev.prod(dim=-1)
-    var = stddev.square()
-    sigma = torch.stack((var[..., 0],
-                         covar,
-                         covar,
-                         var[..., 1]), dim=-1).reshape(_shape[:-1] + (2, 2))
-    return xy, sigma
-
-def kld_loss_(pred, target, fun='log1p', tau=1.0, alpha=1.0, sqrt=True, eps=1e-7):
-    # todo
-    #datatype conversion from float16 to float32
-    original_dtype = pred.dtype
-    pred = pred.float()
-    target = target.float()
-
-    xy_p, Sigma_p = xy_stddev_pearson_2_xy_sigma(pred)
-    xy_t, Sigma_t = xy_stddev_pearson_2_xy_sigma(target)
-
-    _shape = xy_p.shape
-
-    xy_p = xy_p.reshape(-1, 2)
-    xy_t = xy_t.reshape(-1, 2)
-    Sigma_p = Sigma_p.reshape(-1, 2, 2)
-    Sigma_t = Sigma_t.reshape(-1, 2, 2)
-
-    # Add eps to prevent singular matrices
-    Sigma_p_det = Sigma_p.det() + eps
-    Sigma_t_det = Sigma_t.det() + eps
-
-    Sigma_p_inv = torch.stack((Sigma_p[..., 1, 1], -Sigma_p[..., 0, 1],
-                               -Sigma_p[..., 1, 0], Sigma_p[..., 0, 0]),
-                              dim=-1).reshape(-1, 2, 2)
-    Sigma_p_inv = Sigma_p_inv / Sigma_p_det.unsqueeze(-1).unsqueeze(-1)
-
-    dxy = (xy_p - xy_t).unsqueeze(-1)
-    xy_distance = 0.5 * dxy.permute(0, 2, 1).bmm(Sigma_p_inv).bmm(
-        dxy).view(-1)
-
-    whr_distance = 0.5 * Sigma_p_inv.bmm(
-        Sigma_t).diagonal(dim1=-2, dim2=-1).sum(dim=-1)
-
-    # Use stabilized determinants for log
-    Sigma_p_det_log = Sigma_p_det.log()
-    Sigma_t_det_log = Sigma_t_det.log()
-    
-    whr_distance = whr_distance + 0.5 * (Sigma_p_det_log - Sigma_t_det_log)
-    whr_distance = whr_distance - 1
-    distance = (xy_distance / (alpha * alpha) + whr_distance)
-    if sqrt:
-        # Add eps before sqrt to prevent NaN
-        distance = (distance + eps).sqrt()
-
-    distance = distance.reshape(_shape[:-1])
-    distanz = postprocess(distance, fun=fun, tau=tau)
-    distanz = distanz.to(original_dtype)
-    
-    return distanz
-
+# Example Usage (using the original tensor definitions for demonstration)
 if __name__ == "__main__":
-    loss = KLDloss()
-    # pred = torch.tensor([[20, 20, 10, 10, 10], [20, 20, 20, 10, 10], [1, 0.5, 2, 1, 0]], dtype=torch.float32)
-    pred = torch.tensor([
-            [100.0, 100.0, 50.0, 30.0, 0.0],
-            [200.0, 200.0, 60.0, 40.0, math.pi/4],
-            [300.0, 300.0, 70.0, 50.0, math.pi/2]
-        ])
-    
-    target = torch.tensor([
-            [110.0, 100.0, 50.0, 30.0, 0.0],
-            [205.0, 195.0, 60.0, 40.0, math.pi/4],
-            [300.0, 300.0, 70.0, 50.0, math.pi/2]
-        ])
-    # target = torch.tensor([[20, 20, 10, 10,5], [20, 20, 20, 10,5], [1.2, 1, 2, 1, 0]], dtype=torch.float32)
-    kld_l = kld_loss(pred, target, taf=1.0)
-    print(kld_l)
-    kld_d = kld_loss_(pred, target, tau=1.0)
-    print(kld_d)
-    a = torch.tensor([[0.20],[0.40],[0.50]]).sigmoid()
-    print(a)
-    print(a.shape)
-    print(torch.floor(a*180))
-    # pred = torch.tensor([[20, 20, 10, 10, -90], [20, 20, 20, 10, 90], [1, 0.5, 2, 1, 0]], dtype=torch.float32)
-    # target = torch.tensor([[20, 20, 10, 10, -90], [20, 20, 20, 10, 0]], dtype=torch.float32)
-    kld = compute_kld_loss(target, pred)
-    print(kld)
-    #
-    print(torch.floor(torch.tensor(-9.9)))
-    
-    loss_iou = ((1.0 - kld_d) * 3).sum() / 3
+  box_pr = torch.tensor([
+          [100.0, 100.0, 50.0, 30.0, 0.0],
+          [200.0, 200.0, 60.0, 40.0, math.pi/4],
+          [300.0, 300.0, 70.0, 50.0, math.pi/2]
+      ])
+
+  box_gt = torch.tensor([
+          [110.0, 100.0, 50.0, 30.0, 0.0],
+          [205.0, 195.0, 60.0, 40.0, math.pi/4],
+          [300.0, 300.0, 70.0, 50.0, math.pi/2]
+      ])
+
+  # Calculate loss using 'none' final function
+  loss_none, KLD_none = calculate_kld_loss_with_final_function(box_pr, box_gt, final_function='none')
+  print("KLD values (none):")
+  print(KLD_none)
+  print("Loss (none):")
+  print(loss_none)
+
+  # Calculate loss using 'sqrt' final function
+  loss_sqrt, KLD_sqrt = calculate_kld_loss_with_final_function(box_pr, box_gt, final_function='sqrt')
+  print("\nKLD values (sqrt):")
+  print(KLD_sqrt)
+  print("Loss (sqrt):")
+  print(loss_sqrt)
+
+  # Calculate loss using 'ln' final function
+  loss_log, KLD_log = calculate_kld_loss_with_final_function(box_pr, box_gt, final_function='ln')
+  print("\nKLD values (ln):")
+  print(KLD_log)
+  print("Loss (ln):")
+  loss_log
