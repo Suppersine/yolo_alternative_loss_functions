@@ -12,7 +12,7 @@ from ultralytics.utils.tal import RotatedTaskAlignedAssigner, TaskAlignedAssigne
 from ultralytics.utils.torch_utils import autocast
 
 from .csl_calc import calculate_iou_batch
-from .kld_calc import calculate_kld_loss_with_final_function
+from .kld_calc import getklddist, getlostkld
 from .kfiou_calc import kfiou_loss
 import pickle
 
@@ -172,11 +172,11 @@ class RotatedBboxLoss(BboxLoss):
             iou = calculate_iou_batch(pred_bboxes[fg_mask], target_bboxes[fg_mask], eps=1e-7)
             #loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
         elif lossmode == 'KLD_none':
-            loss_iou, iou = calculate_kld_loss_with_final_function(pred_bboxes[fg_mask], target_bboxes[fg_mask], final_function='none')
+            loss_iou, iou = getklddist(pred_bboxes[fg_mask], target_bboxes[fg_mask], final_function='none')
         elif lossmode == 'KLD_sqrt':
-            loss_iou, iou = calculate_kld_loss_with_final_function(pred_bboxes[fg_mask], target_bboxes[fg_mask], final_function='sqrt')
+            loss_iou, iou = getklddist(pred_bboxes[fg_mask], target_bboxes[fg_mask], final_function='sqrt')
         elif lossmode == 'KLD_ln':
-            loss_iou, iou = calculate_kld_loss_with_final_function(pred_bboxes[fg_mask], target_bboxes[fg_mask], final_function='ln')
+            loss_iou, iou = getklddist(pred_bboxes[fg_mask], target_bboxes[fg_mask], final_function='ln')
             # iou = KLD_none
             # loss_iou = loss_none
         elif lossmode == 'KFIOU_dflt':
@@ -190,7 +190,7 @@ class RotatedBboxLoss(BboxLoss):
 
         # IOU-loss for non-KLD IOU algorithms:
         if lossmode in ["KLD_none", "KLD_sqrt", "KLD_ln"]:
-            loss_iou = loss_iou
+            loss_iou = (loss_iou * weight).sum() / target_scores_sum
         else:
             loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
 
