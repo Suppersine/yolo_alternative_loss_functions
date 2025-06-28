@@ -1,4 +1,6 @@
 # prompt: Divide the "final function" (none, sqrt, ln) into 3 cases, as an input argument & returning value
+import torch
+import math
 
 def calculate_kld_loss_with_final_function(box_pr, box_gt, final_function='none', eps=1e-7):
   """
