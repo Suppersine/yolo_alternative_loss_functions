@@ -74,8 +74,12 @@ def getklddist(box_pr, box_gt, final_function='none', eps=1e-7, final_reLU=False
     transformed_KLD = torch.sqrt(KLD)
   elif final_function == 'ln':
     transformed_KLD = torch.log(KLD + 1 + eps)
+  elif final_function == 'exp':
+    transformed_KLD = torch.exp(KLD)
+  elif final_function == 'inv_exp':
+    transformed_KLD = torch.exp((-1)*(KLD))
   else:
-    raise ValueError("Invalid final_function specified. Choose 'none', 'sqrt', or 'ln'.")
+    raise ValueError("Invalid final_function specified. Choose 'none', 'sqrt', 'ln', or 'exp'.")
 
   # Set Tau
   Tau = 1
