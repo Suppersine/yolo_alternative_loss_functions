@@ -79,7 +79,8 @@ def getklddist(box_pr, box_gt, final_function='none', eps=1e-7, final_reLU=False
   elif final_function == 'inv_exp':
     transformed_KLD = torch.exp((-1)*(KLD))
   else:
-    raise ValueError("Invalid final_function specified. Choose 'none', 'sqrt', 'ln', or 'exp'.")
+    print("Invalid final_function specified. Choose 'none', 'sqrt', 'ln', 'exp', or 'inv_exp'.")
+    exit
 
   # Set Tau
   Tau = 1
@@ -114,22 +115,36 @@ if __name__ == "__main__":
       ])
 
   # Calculate loss using 'none' final function
-  loss_none, KLD_none = calculate_kld_loss_with_final_function(box_pr, box_gt, final_function='none')
+  loss_none, KLD_none = getklddist(box_pr, box_gt, final_function='none')
   print("KLD values (none):")
   print(KLD_none)
   print("Loss (none):")
   print(loss_none)
 
   # Calculate loss using 'sqrt' final function
-  loss_sqrt, KLD_sqrt = calculate_kld_loss_with_final_function(box_pr, box_gt, final_function='sqrt')
+  loss_sqrt, KLD_sqrt = getklddist(box_pr, box_gt, final_function='sqrt')
   print("\nKLD values (sqrt):")
   print(KLD_sqrt)
   print("Loss (sqrt):")
   print(loss_sqrt)
 
   # Calculate loss using 'ln' final function
-  loss_log, KLD_log = calculate_kld_loss_with_final_function(box_pr, box_gt, final_function='ln')
+  loss_log, KLD_log = getklddist(box_pr, box_gt, final_function='ln')
   print("\nKLD values (ln):")
   print(KLD_log)
   print("Loss (ln):")
-  loss_log
+  print(loss_log)
+
+  # Calculate loss using 'exp' final function
+  loss_exp, KLD_exp = getklddist(box_pr, box_gt, final_function='exp')
+  print("\nKLD values (exp):")
+  print(KLD_exp)
+  print("Loss (exp):")
+  print(loss_exp)
+
+  # Calculate loss using 'inv_exp' final function
+  loss_inv_exp, KLD_inv_exp = getklddist(box_pr, box_gt, final_function='inv_exp')
+  print("\nKLD values (inv_exp):")
+  print(KLD_inv_exp)
+  print("Loss (inv_exp):")
+  print(loss_inv_exp)
