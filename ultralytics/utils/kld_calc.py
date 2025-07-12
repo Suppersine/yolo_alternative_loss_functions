@@ -75,12 +75,11 @@ def getklddist(box_pr, box_gt, final_function='none', eps=1e-7, final_reLU=False
   elif final_function == 'ln':
     transformed_KLD = torch.log(KLD + 1 + eps)
   elif final_function == 'exp':
-    transformed_KLD = torch.exp(KLD)
-  elif final_function == 'inv_exp':
-    transformed_KLD = torch.exp((-1)*(KLD))
+    transformed_KLD = 1 - torch.exp(KLD)
+  elif final_function == 'neg_exp':
+    transformed_KLD = 1 - torch.exp((-1)*(KLD))
   else:
-    print("Invalid final_function specified. Choose 'none', 'sqrt', 'ln', 'exp', or 'inv_exp'.")
-    exit
+    raise ValueError("Invalid final_function specified. Choose 'none', 'sqrt', 'ln', 'exp', or 'neg_exp'.")
 
   # Set Tau
   Tau = 1
@@ -143,8 +142,8 @@ if __name__ == "__main__":
   print(loss_exp)
 
   # Calculate loss using 'inv_exp' final function
-  loss_inv_exp, KLD_inv_exp = getklddist(box_pr, box_gt, final_function='inv_exp')
-  print("\nKLD values (inv_exp):")
+  loss_inv_exp, KLD_inv_exp = getklddist(box_pr, box_gt, final_function='neg_exp')
+  print("\nKLD values (neg_exp):")
   print(KLD_inv_exp)
-  print("Loss (inv_exp):")
+  print("Loss (neg_exp):")
   print(loss_inv_exp)
