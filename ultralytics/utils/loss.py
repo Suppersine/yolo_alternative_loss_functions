@@ -179,8 +179,8 @@ class RotatedBboxLoss(BboxLoss):
             loss_iou, iou = getklddist(pred_bboxes[fg_mask], target_bboxes[fg_mask], final_function='ln')
         elif lossmode == 'KLD_exp':
             loss_iou, iou = getklddist(pred_bboxes[fg_mask], target_bboxes[fg_mask], final_function='exp')
-        elif lossmode == 'KLD_inv_exp':
-            loss_iou, iou = getklddist(pred_bboxes[fg_mask], target_bboxes[fg_mask], final_function='inv_exp')
+        elif lossmode == 'KLD_neg_exp':
+            loss_iou, iou = getklddist(pred_bboxes[fg_mask], target_bboxes[fg_mask], final_function='neg_exp')
             # iou = KLD_none
             # loss_iou = loss_none
         elif lossmode == 'KFIOU_dflt':
